@@ -1,41 +1,28 @@
 import base64
 import json
+
 import cv2
 from ultralytics import YOLO
 import numpy as np
 from flask import Flask, request, jsonify
 import os
-from datetime import datetime
-# 获取当前脚本的绝对路径
-current_path = os.path.abspath(__file__)
-# 获取脚本所在目录
-script_dir = os.path.dirname(current_path)
-# 切换到脚本所在目录
-os.chdir(script_dir)
-print('当前目录切换成功',script_dir)
 
-class Config:
-    # 默认配置
-    接收截图 = True
-    
-    @classmethod
-    def load(cls, config_path='./cofig.json'):
-        """加载配置文件到类属性"""
-        try:
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config_dict = json.load(f)
-                # 将配置项设置为类属性
-                for key, value in config_dict.items():
-                    setattr(cls, key, value)
-        except Exception as e:
-            print(f"加载配置失败,使用默认配置: {e}")
+def 切换到脚本所在目录():
+    # 获取当前脚本的绝对路径
+    current_path = os.path.abspath(__file__)
+    # 获取脚本所在目录
+    script_dir = os.path.dirname(current_path)
+    # 切换到脚本所在目录
+    os.chdir(script_dir)
+    print('当前目录切换成功',script_dir)
 
-# 初始化时加载配置
-Config.load()
+切换到脚本所在目录()
+
+pt=r'D:\gitcangku\eggkid_mob_spawner\pt\baobaohu_newestpt\best.pt'
 
 app = Flask(__name__)
 class Model:
-    def __init__(self, model_path="./yolov8n.pt"):
+    def __init__(self, model_path=pt):
         self.model = YOLO(model_path)
     def detect(self, img_path):
         results = self.model(img_path)
@@ -52,32 +39,24 @@ class Model:
             } for id_ in range(len(obj_names))
         ]
         return objs
-# model = Model('./last.pt')
+model = Model(pt)
 
 @app.route('/recognize', methods=['POST'])
 def recognize():
-    print("有请求过来了")
     if not request.json or 'image' not in request.json:
         return jsonify({'error': 'No image data provided'}), 400
-    
+        # 获取 base64 编码的图像数据
     image_base64 = json.loads(request.json)['image']
+    print("接收到了image这个数据", image_base64)
+    # 将 base64 编码的图像数据解码为字节数组
     image_bytes = base64.b64decode(image_base64)
+    # 将字节数组转换为 NumPy 数组
     image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+    # 使用 cv2.imdecode() 将 NumPy 数组解码为 cv2 对象
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-    
-    if Config.接收截图:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        cv2.imwrite(f'./服务器接收的截图/{timestamp}.png', image)
-
-    return jsonify({'message': '图片已保存'})
-    # 检测
+    # 使用转换后的 cv2 对象进行检测
     result = model.detect(image)
-    # 类别名字
-    name= result[0]['cls']
-    # 概率
-    conf= result[0]['conf']
-    # 返回结果
-    return jsonify({'name': name,'conf':conf})
+    return jsonify({'result': result})
 
 @app.route('/shutdown', methods=['POST'])
 def shutdown():
@@ -88,5 +67,5 @@ def shutdown():
     return 'Server shutting down...'
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=22234)  # 在调试模式下运行，方便调试
+    app.run(port=22234)  # 在调试模式下运行，方便调试
     
